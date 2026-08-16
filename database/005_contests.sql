@@ -37,7 +37,7 @@ create policy "contests_manager_delete" on public.contests
 for delete to authenticated
 using (public.is_content_manager());
 
--- Leaderboard is calculated from submitted test attempts for the contest's linked test.
+-- Leaderboard is calculated from submitted attempts for the contest's linked test.
 create or replace function public.get_contest_leaderboard(p_contest_id uuid)
 returns table(rank bigint, student_name text, score numeric, correct_count integer, wrong_count integer)
 language sql
@@ -52,9 +52,10 @@ as $$
       a.correct_count,
       a.wrong_count
     from public.contests c
-    join public.test_attempts a on a.test_id = c.test_id and a.status = 'submitted'
+    join public.test_attempts a on a.test_id = c.test_id
     join public.profiles p on p.id = a.student_id
     where c.id = p_contest_id
+      and a.status = 'submitted'
   )
   select rank, student_name, score, correct_count, wrong_count
   from ranked
