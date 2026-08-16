@@ -38,4 +38,15 @@ button { font: inherit; cursor: pointer; }
 .manager-form .primary-link { border: 0; cursor: pointer; width: fit-content; }
 .checkbox { display: flex; align-items: center; gap: 8px; color: #475467; }
 .checkbox input { width: auto; }
-@media (max-width: 640px) { .dashboard-header, .practice-header { flex-direction: column; } }
+.select-list { display: grid; gap: 10px; max-height: 420px; overflow: auto; border: 1px solid #e1e6ef; border-radius: 12px; padding: 12px; }
+.select-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e1e6ef; border-radius: 10px; background: #fafbfc; }
+.select-item input { margin-top: 3px; }
+.select-item span { display: grid; gap: 4px; }
+.select-item small { color: #667085; line-height: 1.4; }
+.action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.action-row button { border: 1px solid #ccd3df; background: white; border-radius: 9px; padding: 8px 11px; }
+.action-row .danger { color: #b42318; }
+.timer { position: sticky; top: 12px; z-index: 2; margin-bottom: 18px; padding: 12px 16px; background: white; border: 1px solid #e1e6ef; border-radius: 12px; font-weight: 800; text-align: right; }
+.test-list { display: grid; gap: 16px; }
+.test-list .dashboard-card { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+@media (max-width: 640px) { .dashboard-header, .practice-header { flex-direction: column; } .test-list .dashboard-card { flex-direction: column; align-items: flex-start; } }

@@ -29,6 +29,7 @@ export default function DashboardPage() {
   }
 
   if (loading) return <main className="auth-page"><p>Loading SkillCampus...</p></main>;
+  const manager = profile && ['faculty', 'admin', 'hod', 'placement_officer', 'principal', 'super_admin'].includes(profile.role);
 
   return (
     <main className="dashboard-page">
@@ -40,9 +41,10 @@ export default function DashboardPage() {
       {profile && <section className="dashboard-grid">
         <article className="dashboard-card"><span>ACCOUNT</span><h2>{profile.role.toUpperCase()}</h2><p>{profile.email}</p></article>
         <article className="dashboard-card"><span>APTITUDE</span><h2>Practice</h2><p>Quantitative, logical and verbal preparation.</p><Link className="card-link" href="/aptitude">Start practice →</Link></article>
+        <article className="dashboard-card"><span>TESTS</span><h2>Assessments</h2><p>Take timed tests and track your results.</p><Link className="card-link" href="/tests">View tests →</Link></article>
         <article className="dashboard-card"><span>CODING</span><h2>Coming next</h2><p>Programming, DSA and SQL practice.</p></article>
-        <article className="dashboard-card"><span>TESTS</span><h2>Coming next</h2><p>Timed tests and performance tracking.</p></article>
         <article className="dashboard-card"><span>CONTESTS</span><h2>Coming next</h2><p>Compete and climb the leaderboard.</p></article>
+        {manager && <article className="dashboard-card"><span>MANAGEMENT</span><h2>Tests</h2><p>Create and publish assessments from the question bank.</p><Link className="card-link" href="/manage/tests">Manage tests →</Link></article>}
       </section>}
     </main>
   );
