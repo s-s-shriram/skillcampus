@@ -1,71 +1,93 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { createClient } from '../../lib/supabase/client';
 
-const questions = [
-  {
-    id: 1,
-    topic: 'Quantitative Aptitude',
-    difficulty: 'Easy',
-    question: 'A train travels 120 km in 2 hours. What is its average speed?',
-    options: ['40 km/h', '50 km/h', '60 km/h', '80 km/h'],
-    answer: '60 km/h',
-    explanation: 'Average speed = distance ÷ time = 120 ÷ 2 = 60 km/h.'
-  },
-  {
-    id: 2,
-    topic: 'Percentages',
-    difficulty: 'Easy',
-    question: 'What is 20% of 250?',
-    options: ['25', '40', '50', '60'],
-    answer: '50',
-    explanation: '20% of 250 = (20/100) × 250 = 50.'
-  },
-  {
-    id: 3,
-    topic: 'Logical Reasoning',
-    difficulty: 'Medium',
-    question: 'Find the next number: 2, 6, 12, 20, 30, ?',
-    options: ['36', '40', '42', '44'],
-    answer: '42',
-    explanation: 'The differences are 4, 6, 8, 10, so the next difference is 12. Therefore 30 + 12 = 42.'
-  },
-  {
-    id: 4,
-    topic: 'Verbal Ability',
-    difficulty: 'Easy',
-    question: 'Choose the word closest in meaning to “abundant”.',
-    options: ['Rare', 'Plentiful', 'Empty', 'Weak'],
-    answer: 'Plentiful',
-    explanation: 'Abundant means existing in large quantities; plentiful has the same meaning.'
-  },
-  {
-    id: 5,
-    topic: 'Time and Work',
-    difficulty: 'Medium',
-    question: 'A person completes a job in 10 days. What fraction of the job is completed in one day at the same rate?',
-    options: ['1/5', '1/10', '1/20', '10/1'],
-    answer: '1/10',
-    explanation: 'If the complete job takes 10 equal-rate days, one day completes 1/10 of the job.'
-  }
-];
+type Question = {
+  id: string;
+  title: string;
+  question_text: string;
+  difficulty: string;
+  topic: string | null;
+  options: string[] | null;
+  correct_answer: string | null;
+  explanation: string | null;
+};
+
+const difficulties = ['all', 'easy', 'medium', 'hard'];
 
 export default function AptitudePage() {
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [topic, setTopic] = useState('all');
+  const [difficulty, setDifficulty] = useState('all');
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState('');
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
-  const question = questions[index];
-  const finished = index === questions.length;
-  const percentage = useMemo(() => Math.round((score / questions.length) * 100), [score]);
+  useEffect(() => {
+    async function loadQuestions() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('questions')
+        .select('id,title,question_text,difficulty,topic,options,correct_answer,explanation')
+        .eq('question_type', 'aptitude')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+
+      if (error) setMessage(error.message);
+      else setQuestions((data ?? []) as Question[]);
+      setLoading(false);
+    }
+
+    loadQuestions();
+  }, []);
+
+  const topics = useMemo(() => {
+    const values = questions.map((q) => q.topic).filter(Boolean) as string[];
+    return ['all', ...Array.from(new Set(values))];
+  }, [questions]);
+
+  const filteredQuestions = useMemo(() => {
+    return questions.filter((q) =>
+      (topic === 'all' || q.topic === topic) &&
+      (difficulty === 'all' || q.difficulty === difficulty)
+    );
+  }, [questions, topic, difficulty]);
+
+  const question = filteredQuestions[index];
+  const finished = index >= filteredQuestions.length && filteredQuestions.length > 0;
+  const percentage = useMemo(
+    () => filteredQuestions.length ? Math.round((score / filteredQuestions.length) * 100) : 0,
+    [score, filteredQuestions.length]
+  );
+
+  function resetPractice() {
+    setIndex(0);
+    setSelected('');
+    setScore(0);
+    setAnswered(false);
+  }
+
+  function changeFilter(setter: (value: string) => void, value: string) {
+    setter(value);
+    resetPractice();
+  }
 
   function choose(option: string) {
-    if (answered) return;
+    if (answered || !question) return;
     setSelected(option);
     setAnswered(true);
-    if (option === question.answer) setScore((value) => value + 1);
+    if (option === question.correct_answer) setScore((value) => value + 1);
   }
 
   function next() {
@@ -74,11 +96,19 @@ export default function AptitudePage() {
     setIndex((value) => value + 1);
   }
 
+  if (loading) {
+    return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · APTITUDE</p><h1>Loading practice...</h1></main>;
+  }
+
+  if (message) {
+    return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · APTITUDE</p><h1>Unable to load questions</h1><p>{message}</p><Link className="secondary-link" href="/dashboard">Back to dashboard</Link></main>;
+  }
+
   if (finished) {
     return (
       <main className="practice-page">
-        <div className="practice-header"><p className="eyebrow">SKILLCAMPUS · APTITUDE</p><h1>Practice complete 🎉</h1><p>You scored <strong>{score}/{questions.length}</strong> ({percentage}%).</p></div>
-        <section className="result-card"><h2>Keep improving</h2><p>Practice different topics and difficulty levels. Your attempt engine is ready; the next step is connecting this practice bank to Supabase.</p><Link className="primary-link" href="/dashboard">Back to dashboard</Link></section>
+        <div className="practice-header"><div><p className="eyebrow">SKILLCAMPUS · APTITUDE</p><h1>Practice complete 🎉</h1><p>You scored <strong>{score}/{filteredQuestions.length}</strong> ({percentage}%).</p></div><Link className="secondary-link" href="/dashboard">Dashboard</Link></div>
+        <section className="result-card"><h2>Keep improving</h2><p>Try another topic or difficulty level from the question bank.</p><button className="primary-link" onClick={resetPractice}>Practice again</button></section>
       </main>
     );
   }
@@ -86,22 +116,34 @@ export default function AptitudePage() {
   return (
     <main className="practice-page">
       <header className="practice-header">
-        <div><p className="eyebrow">SKILLCAMPUS · APTITUDE</p><h1>Practice</h1><p>Question {index + 1} of {questions.length} · Score {score}</p></div>
+        <div><p className="eyebrow">SKILLCAMPUS · APTITUDE</p><h1>Practice</h1><p>Real questions published by SkillCampus faculty and administrators.</p></div>
         <Link className="secondary-link" href="/dashboard">Dashboard</Link>
       </header>
 
-      <section className="question-card">
-        <div className="question-meta"><span>{question.topic}</span><span>{question.difficulty}</span></div>
-        <h2>{question.question}</h2>
-        <div className="options">
-          {question.options.map((option) => {
-            const correct = answered && option === question.answer;
-            const wrong = answered && option === selected && option !== question.answer;
-            return <button key={option} className={`option ${correct ? 'correct' : ''} ${wrong ? 'wrong' : ''}`} onClick={() => choose(option)}>{option}</button>;
-          })}
+      <section className="question-card" style={{ marginBottom: 18 }}>
+        <h2>Choose your practice</h2>
+        <div className="dashboard-grid">
+          <label>Topic<select value={topic} onChange={(e) => changeFilter(setTopic, e.target.value)}><option value="all">All topics</option>{topics.filter((value) => value !== 'all').map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label>Difficulty<select value={difficulty} onChange={(e) => changeFilter(setDifficulty, e.target.value)}>{difficulties.map((value) => <option key={value} value={value}>{value === 'all' ? 'All levels' : value[0].toUpperCase() + value.slice(1)}</option>)}</select></label>
         </div>
-        {answered && <div className={`feedback ${selected === question.answer ? 'success' : 'failure'}`}><strong>{selected === question.answer ? 'Correct!' : 'Not quite.'}</strong><p>{question.explanation}</p><button onClick={next}>{index === questions.length - 1 ? 'See result' : 'Next question'}</button></div>}
       </section>
+
+      {filteredQuestions.length === 0 ? (
+        <section className="result-card"><h2>No questions found</h2><p>There are no published aptitude questions for this filter yet. Try another filter or ask faculty to publish more questions.</p></section>
+      ) : (
+        <section className="question-card">
+          <div className="question-meta"><span>{question.topic || 'APTITUDE'}</span><span>{question.difficulty}</span><span>Question {index + 1} of {filteredQuestions.length}</span></div>
+          <h2>{question.question_text}</h2>
+          <div className="options">
+            {(question.options ?? []).map((option) => {
+              const correct = answered && option === question.correct_answer;
+              const wrong = answered && option === selected && option !== question.correct_answer;
+              return <button key={option} className={`option ${correct ? 'correct' : ''} ${wrong ? 'wrong' : ''}`} onClick={() => choose(option)}>{option}</button>;
+            })}
+          </div>
+          {answered && <div className={`feedback ${selected === question.correct_answer ? 'success' : 'failure'}`}><strong>{selected === question.correct_answer ? 'Correct!' : 'Not quite.'}</strong><p>{question.explanation || 'Keep practicing and review the concept behind this question.'}</p><button onClick={next}>{index === filteredQuestions.length - 1 ? 'See result' : 'Next question'}</button></div>}
+        </section>
+      )}
     </main>
   );
 }
