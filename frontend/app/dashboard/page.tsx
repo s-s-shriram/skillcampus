@@ -42,9 +42,12 @@ export default function DashboardPage() {
         <article className="dashboard-card"><span>ACCOUNT</span><h2>{profile.role.toUpperCase()}</h2><p>{profile.email}</p></article>
         <article className="dashboard-card"><span>APTITUDE</span><h2>Practice</h2><p>Quantitative, logical and verbal preparation.</p><Link className="card-link" href="/aptitude">Start practice →</Link></article>
         <article className="dashboard-card"><span>TESTS</span><h2>Assessments</h2><p>Take timed tests and track your results.</p><Link className="card-link" href="/tests">View tests →</Link></article>
+        <article className="dashboard-card"><span>CONTESTS</span><h2>Compete</h2><p>Join scheduled competitions and climb the leaderboard.</p><Link className="card-link" href="/contests">View contests →</Link></article>
         <article className="dashboard-card"><span>CODING</span><h2>Coming next</h2><p>Programming, DSA and SQL practice.</p></article>
-        <article className="dashboard-card"><span>CONTESTS</span><h2>Coming next</h2><p>Compete and climb the leaderboard.</p></article>
-        {manager && <article className="dashboard-card"><span>MANAGEMENT</span><h2>Tests</h2><p>Create and publish assessments from the question bank.</p><Link className="card-link" href="/manage/tests">Manage tests →</Link></article>}
+        {manager && <>
+          <article className="dashboard-card"><span>MANAGEMENT</span><h2>Tests</h2><p>Create and publish assessments from the question bank.</p><Link className="card-link" href="/manage/tests">Manage tests →</Link></article>
+          <article className="dashboard-card"><span>MANAGEMENT</span><h2>Contests</h2><p>Schedule competitions and monitor leaderboards.</p><Link className="card-link" href="/manage/contests">Manage contests →</Link></article>
+        </>}
       </section>}
     </main>
   );
