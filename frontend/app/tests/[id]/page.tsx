@@ -55,9 +55,27 @@ export default function TakeTestPage() {
         (saved ?? []).forEach((row) => { if (row.selected_answer) restored[row.question_id] = row.selected_answer; });
         setAnswers(restored);
       } else {
+        // Next.js development mode may run effects twice. If two loads race,
+        // the unique constraint protects the database; the second load simply
+        // fetches the attempt that the first load created.
         const { data: created, error: ae } = await supabase.from('test_attempts').insert({ test_id: testId, student_id: user.id }).select('id,started_at').single();
-        if (ae || !created) setMessage(ae?.message || 'Unable to start test.');
-        else { setAttemptId(created.id); setSeconds(Number(t.duration_minutes) * 60); }
+        if (created) {
+          setAttemptId(created.id);
+          setSeconds(Number(t.duration_minutes) * 60);
+        } else if (ae?.code === '23505') {
+          const { data: raced, error: re } = await supabase.from('test_attempts').select('id,status,score,correct_count,wrong_count,started_at').eq('test_id', testId).eq('student_id', user.id).single();
+          if (re || !raced) setMessage(re?.message || 'Unable to recover test attempt.');
+          else if (raced.status === 'submitted') {
+            setAttemptId(raced.id);
+            setResult({ score: Number(raced.score ?? 0), correct_count: raced.correct_count, wrong_count: raced.wrong_count, total_questions: ordered.length });
+          } else {
+            setAttemptId(raced.id);
+            const elapsed = Math.max(0, Math.floor((Date.now() - new Date(raced.started_at).getTime()) / 1000));
+            setSeconds(Math.max(0, Number(t.duration_minutes) * 60 - elapsed));
+          }
+        } else {
+          setMessage(ae?.message || 'Unable to start test.');
+        }
       }
       setLoading(false);
     }
