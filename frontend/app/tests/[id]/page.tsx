@@ -42,13 +42,13 @@ export default function TakeTestPage() {
       }).filter(Boolean) as Question[];
       setQuestions(ordered);
 
-      const { data: existing } = await supabase.from('test_attempts').select('id,status,score,correct_count,wrong_count').eq('test_id', testId).eq('student_id', user.id).maybeSingle();
+      const { data: existing } = await supabase.from('test_attempts').select('id,status,score,correct_count,wrong_count,started_at').eq('test_id', testId).eq('student_id', user.id).maybeSingle();
       if (existing?.status === 'submitted') {
         setAttemptId(existing.id);
         setResult({ score: Number(existing.score ?? 0), correct_count: existing.correct_count, wrong_count: existing.wrong_count, total_questions: ordered.length });
       } else if (existing) {
         setAttemptId(existing.id);
-        const elapsed = Math.max(0, Math.floor((Date.now() - new Date(existing.started_at ?? Date.now()).getTime()) / 1000));
+        const elapsed = Math.max(0, Math.floor((Date.now() - new Date(existing.started_at).getTime()) / 1000));
         setSeconds(Math.max(0, Number(t.duration_minutes) * 60 - elapsed));
         const { data: saved } = await supabase.from('test_attempt_answers').select('question_id,selected_answer').eq('attempt_id', existing.id);
         const restored: Record<string, string> = {};
@@ -70,11 +70,6 @@ export default function TakeTestPage() {
     return () => window.clearInterval(timer);
   }, [attemptId, result, seconds]);
 
-  useEffect(() => {
-    if (seconds === 0 && attemptId && !result && !loading) submit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seconds]);
-
   const formattedTime = useMemo(() => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`, [seconds]);
 
   async function choose(questionId: string, answer: string) {
@@ -93,6 +88,11 @@ export default function TakeTestPage() {
     }
     setSubmitting(false);
   }
+
+  useEffect(() => {
+    if (seconds === 0 && attemptId && !result && !loading) submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seconds]);
 
   if (loading) return <main className="auth-page"><p>Loading test...</p></main>;
   if (message && !test) return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · TEST</p><h1>Unable to load test</h1><p className="error">{message}</p><Link className="secondary-link" href="/tests">Back to tests</Link></main>;
