@@ -2,5 +2,34 @@
 html, body { margin: 0; padding: 0; }
 body { font-family: Arial, Helvetica, sans-serif; background: #f6f8fb; color: #172033; }
 a { color: inherit; text-decoration: none; }
-button { font: inherit; }
+button { font: inherit; cursor: pointer; }
 .container { width: min(1120px, 92%); margin: 0 auto; }
+.auth-page, .dashboard-page, .practice-page { width: min(1120px, 92%); margin: 0 auto; padding: 56px 0; }
+.eyebrow { font-weight: 800; letter-spacing: .08em; font-size: 14px; margin: 0 0 14px; }
+.muted { color: #5b667a; }
+.error { color: #b42318; font-weight: 600; }
+.dashboard-header, .practice-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 36px; }
+.dashboard-header h1, .practice-header h1 { font-size: clamp(34px, 5vw, 54px); margin: 0 0 10px; }
+.dashboard-header button { border: 1px solid #ccd3df; background: white; padding: 10px 16px; border-radius: 10px; }
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+.dashboard-card { background: white; border: 1px solid #e1e6ef; border-radius: 18px; padding: 24px; box-shadow: 0 8px 24px rgba(23,32,51,.05); }
+.dashboard-card span { font-size: 12px; font-weight: 800; letter-spacing: .08em; color: #667085; }
+.dashboard-card h2 { margin: 12px 0 8px; }
+.dashboard-card p { color: #5b667a; line-height: 1.5; }
+.card-link, .primary-link { display: inline-block; margin-top: 12px; padding: 11px 16px; border-radius: 10px; background: #172033; color: white; font-weight: 700; }
+.secondary-link { border: 1px solid #ccd3df; background: white; padding: 10px 16px; border-radius: 10px; }
+.question-card, .result-card { background: white; border: 1px solid #e1e6ef; border-radius: 20px; padding: clamp(22px, 4vw, 40px); box-shadow: 0 10px 30px rgba(23,32,51,.06); }
+.question-meta { display: flex; gap: 10px; margin-bottom: 24px; }
+.question-meta span { background: #eef2f7; border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 700; }
+.question-card h2 { font-size: clamp(22px, 3vw, 32px); line-height: 1.35; margin: 0 0 28px; }
+.options { display: grid; gap: 12px; }
+.option { text-align: left; padding: 15px 18px; background: white; border: 2px solid #e1e6ef; border-radius: 12px; }
+.option:hover { border-color: #98a2b3; }
+.option.correct { border-color: #16a34a; background: #f0fdf4; }
+.option.wrong { border-color: #dc2626; background: #fef2f2; }
+.feedback { margin-top: 24px; padding: 18px; border-radius: 14px; }
+.feedback.success { background: #f0fdf4; }
+.feedback.failure { background: #fef2f2; }
+.feedback p { color: #475467; line-height: 1.5; }
+.feedback button { border: 0; border-radius: 10px; background: #172033; color: white; padding: 11px 16px; font-weight: 700; }
+@media (max-width: 640px) { .dashboard-header, .practice-header { flex-direction: column; } }
