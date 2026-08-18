@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { createClient } from '../../../lib/supabase/client';
+import { createClient } from '../../../../lib/supabase/client';
 
 type Problem = {
   id: string;
@@ -73,7 +73,6 @@ export default function CodingProblemPage() {
     setRunning(true);
     setResults([]);
 
-    // Phase 1 UI validation: execution service will be connected next.
     const output = code.trim();
     const nextResults = tests.map((test) => ({
       id: test.id,
