@@ -20,11 +20,24 @@ type Question = {
   explanation: string | null;
 };
 
+type CodingProblem = {
+  id: string;
+  title: string;
+  description: string;
+  language: string;
+  topic: string;
+  difficulty: string;
+  starter_code: string | null;
+  sample_input: string | null;
+  sample_output: string | null;
+};
+
 const languages = ['all', 'c', 'cpp', 'java', 'python', 'sql'];
 const difficulties = ['all', 'easy', 'medium', 'hard'];
 
 export default function ProgrammingPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [codingProblems, setCodingProblems] = useState<CodingProblem[]>([]);
   const [language, setLanguage] = useState('all');
   const [topic, setTopic] = useState('all');
   const [difficulty, setDifficulty] = useState('all');
@@ -36,22 +49,33 @@ export default function ProgrammingPage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    async function loadQuestions() {
+    async function loadProgramming() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = '/login'; return; }
 
-      const { data, error } = await supabase
-        .from('programming_questions')
-        .select('id,title,question,language,topic,difficulty,question_type,option_a,option_b,option_c,option_d,correct_answer,explanation')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
+      const [questionsResult, problemsResult] = await Promise.all([
+        supabase
+          .from('programming_questions')
+          .select('id,title,question,language,topic,difficulty,question_type,option_a,option_b,option_c,option_d,correct_answer,explanation')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('coding_problems')
+          .select('id,title,description,language,topic,difficulty,starter_code,sample_input,sample_output')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false }),
+      ]);
 
-      if (error) setMessage(error.message);
-      else setQuestions((data ?? []) as Question[]);
+      if (questionsResult.error) setMessage(questionsResult.error.message);
+      else setQuestions((questionsResult.data ?? []) as Question[]);
+
+      if (problemsResult.error) setMessage(problemsResult.error.message);
+      else setCodingProblems((problemsResult.data ?? []) as CodingProblem[]);
+
       setLoading(false);
     }
-    loadQuestions();
+    loadProgramming();
   }, []);
 
   const topics = useMemo(() => {
@@ -66,6 +90,12 @@ export default function ProgrammingPage() {
     (topic === 'all' || q.topic === topic) &&
     (difficulty === 'all' || q.difficulty === difficulty)
   ), [questions, language, topic, difficulty]);
+
+  const filteredProblems = useMemo(() => codingProblems.filter((problem) =>
+    (language === 'all' || problem.language === language) &&
+    (topic === 'all' || problem.topic === topic) &&
+    (difficulty === 'all' || problem.difficulty === difficulty)
+  ), [codingProblems, language, topic, difficulty]);
 
   const question = filteredQuestions[index];
   const finished = index >= filteredQuestions.length && filteredQuestions.length > 0;
@@ -89,8 +119,10 @@ export default function ProgrammingPage() {
     setSelected(''); setAnswered(false); setIndex((value) => value + 1);
   }
 
+  const languageLabel = (value: string) => value === 'cpp' ? 'C++' : value === 'sql' ? 'SQL' : value.toUpperCase();
+
   if (loading) return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · PROGRAMMING</p><h1>Loading programming practice...</h1></main>;
-  if (message) return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · PROGRAMMING</p><h1>Unable to load programming questions</h1><p>{message}</p><Link className="secondary-link" href="/dashboard">Back to dashboard</Link></main>;
+  if (message) return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · PROGRAMMING</p><h1>Unable to load programming practice</h1><p>{message}</p><Link className="secondary-link" href="/dashboard">Back to dashboard</Link></main>;
 
   if (finished) return (
     <main className="practice-page">
@@ -102,7 +134,7 @@ export default function ProgrammingPage() {
   return (
     <main className="practice-page">
       <header className="practice-header">
-        <div><p className="eyebrow">SKILLCAMPUS · PROGRAMMING</p><h1>Programming Practice</h1><p>Practice programming concepts, output prediction, debugging and SQL.</p></div>
+        <div><p className="eyebrow">SKILLCAMPUS · PROGRAMMING</p><h1>Programming Practice</h1><p>Practice concepts, output prediction, debugging, SQL and coding problems.</p></div>
         <Link className="secondary-link" href="/dashboard">Dashboard</Link>
       </header>
 
@@ -115,24 +147,48 @@ export default function ProgrammingPage() {
         </div>
       </section>
 
-      {filteredQuestions.length === 0 ? (
-        <section className="result-card"><h2>No programming questions found</h2><p>Ask faculty to publish programming questions, then refresh this page.</p></section>
-      ) : (
-        <section className="question-card">
-          <div className="question-meta"><span>{question.language === 'cpp' ? 'C++' : question.language.toUpperCase()}</span><span>{question.topic}</span><span>{question.difficulty}</span><span>Question {index + 1} of {filteredQuestions.length}</span></div>
-          <h2>{question.title}</h2>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{question.question}</p>
-          <div className="options">
-            {[question.option_a, question.option_b, question.option_c, question.option_d].filter(Boolean).map((option) => {
-              const value = option as string;
-              const correct = answered && value === question.correct_answer;
-              const wrong = answered && value === selected && value !== question.correct_answer;
-              return <button key={value} className={`option ${correct ? 'correct' : ''} ${wrong ? 'wrong' : ''}`} onClick={() => choose(value)}>{value}</button>;
-            })}
+      <section className="result-card" style={{ marginBottom: 18 }}>
+        <div className="practice-header" style={{ marginBottom: 12 }}>
+          <div><p className="eyebrow">CODING</p><h2>Coding Problems</h2><p>Solve programming problems and pass public and hidden test cases.</p></div>
+          <strong>{filteredProblems.length} available</strong>
+        </div>
+        {filteredProblems.length === 0 ? (
+          <p>No published coding problems match your selected filters.</p>
+        ) : (
+          <div className="dashboard-grid">
+            {filteredProblems.map((problem) => (
+              <article key={problem.id} className="question-card">
+                <div className="question-meta"><span>{languageLabel(problem.language)}</span><span>{problem.topic}</span><span>{problem.difficulty}</span></div>
+                <h3>{problem.title}</h3>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{problem.description}</p>
+                <Link className="primary-link" href={`/programming/problems/${problem.id}`}>Solve →</Link>
+              </article>
+            ))}
           </div>
-          {answered && <div className={`feedback ${selected === question.correct_answer ? 'success' : 'failure'}`}><strong>{selected === question.correct_answer ? 'Correct!' : 'Not quite.'}</strong><p>{question.explanation || 'Review the concept and try another question.'}</p><button onClick={next}>{index === filteredQuestions.length - 1 ? 'See result' : 'Next question'}</button></div>}
-        </section>
-      )}
+        )}
+      </section>
+
+      <section className="result-card">
+        <h2>Practice Questions</h2>
+        {filteredQuestions.length === 0 ? (
+          <p>No programming questions match your selected filters. Ask faculty to publish questions, then refresh this page.</p>
+        ) : (
+          <div className="question-card">
+            <div className="question-meta"><span>{languageLabel(question.language)}</span><span>{question.topic}</span><span>{question.difficulty}</span><span>Question {index + 1} of {filteredQuestions.length}</span></div>
+            <h2>{question.title}</h2>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{question.question}</p>
+            <div className="options">
+              {[question.option_a, question.option_b, question.option_c, question.option_d].filter(Boolean).map((option) => {
+                const value = option as string;
+                const correct = answered && value === question.correct_answer;
+                const wrong = answered && value === selected && value !== question.correct_answer;
+                return <button key={value} className={`option ${correct ? 'correct' : ''} ${wrong ? 'wrong' : ''}`} onClick={() => choose(value)}>{value}</button>;
+              })}
+            </div>
+            {answered && <div className={`feedback ${selected === question.correct_answer ? 'success' : 'failure'}`}><strong>{selected === question.correct_answer ? 'Correct!' : 'Not quite.'}</strong><p>{question.explanation || 'Review the concept and try another question.'}</p><button onClick={next}>{index === filteredQuestions.length - 1 ? 'See result' : 'Next question'}</button></div>}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
