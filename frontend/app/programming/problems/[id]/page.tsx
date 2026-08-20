@@ -22,7 +22,7 @@ type Problem = {
 
 type TestCase = {
   id: string;
-  input: string;
+  input_data: string;
   expected_output: string;
   is_hidden: boolean;
 };
@@ -54,7 +54,7 @@ export default function CodingProblemPage() {
 
       const { data: tc, error: te } = await supabase
         .from('coding_test_cases')
-        .select('id,input,expected_output,is_hidden')
+        .select('id,input_data,expected_output,is_hidden')
         .eq('problem_id', params.id)
         .eq('is_hidden', false)
         .order('created_at', { ascending: true });
@@ -73,6 +73,7 @@ export default function CodingProblemPage() {
     setRunning(true);
     setResults([]);
 
+    // Temporary UI validation only. Real sandboxed execution comes next.
     const output = code.trim();
     const nextResults = tests.map((test) => ({
       id: test.id,
