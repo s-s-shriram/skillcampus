@@ -27,6 +27,14 @@ type TestCase = {
   is_hidden: boolean;
 };
 
+type Result = {
+  id: string;
+  passed: boolean;
+  actual: string;
+  expected: string;
+  error?: string;
+};
+
 export default function CodingProblemPage() {
   const params = useParams<{ id: string }>();
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -35,7 +43,7 @@ export default function CodingProblemPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [running, setRunning] = useState(false);
-  const [results, setResults] = useState<{ id: string; passed: boolean; actual: string; expected: string }[]>([]);
+  const [results, setResults] = useState<Result[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -59,7 +67,7 @@ export default function CodingProblemPage() {
         .eq('is_hidden', false)
         .order('created_at', { ascending: true });
 
-      if (te) setMessage(te.message);
+      if (te) { setMessage(te.message); setLoading(false); return; }
       setProblem(p as Problem);
       setTests((tc ?? []) as TestCase[]);
       setCode(p?.starter_code ?? '');
@@ -69,24 +77,35 @@ export default function CodingProblemPage() {
   }, [params.id]);
 
   async function runTests() {
-    if (!problem) return;
+    if (!problem || tests.length === 0) return;
     setRunning(true);
     setResults([]);
+    setMessage('');
 
-    // Temporary UI validation only. Real sandboxed execution comes next.
-    const output = code.trim();
-    const nextResults = tests.map((test) => ({
-      id: test.id,
-      passed: output === test.expected_output.trim(),
-      actual: output,
-      expected: test.expected_output.trim(),
-    }));
-    setResults(nextResults);
-    setRunning(false);
+    try {
+      const response = await fetch('/api/code/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: problem.language,
+          code,
+          tests: tests.map(({ id, input_data, expected_output }) => ({ id, input_data, expected_output })),
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || 'Code execution failed.');
+      setResults(payload.results ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Code execution failed.');
+    } finally {
+      setRunning(false);
+    }
   }
 
   if (loading) return <main className="practice-page"><p>Loading coding problem...</p></main>;
-  if (message || !problem) return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · CODING</p><h1>Unable to load coding problem</h1><p>{message || 'Problem not found or not published.'}</p><Link className="secondary-link" href="/programming">Back to programming</Link></main>;
+  if (message && !problem) return <main className="practice-page"><p className="eyebrow">SKILLCAMPUS · CODING</p><h1>Unable to load coding problem</h1><p>{message}</p><Link className="secondary-link" href="/programming">Back to programming</Link></main>;
+  if (!problem) return null;
 
   return (
     <main className="practice-page">
@@ -111,8 +130,9 @@ export default function CodingProblemPage() {
       <section className="question-card" style={{ marginTop: 18 }}>
         <div className="question-meta"><span>Language: {problem.language === 'cpp' ? 'C++' : problem.language.toUpperCase()}</span><span>{tests.length} public test case{tests.length === 1 ? '' : 's'}</span></div>
         <textarea value={code} onChange={(e) => setCode(e.target.value)} rows={18} spellCheck={false} style={{ width: '100%', fontFamily: 'monospace', padding: 16, borderRadius: 10 }} />
-        <div style={{ marginTop: 14 }}><button className="primary-link" onClick={runTests} disabled={running}>{running ? 'Running...' : '▶ Run Code'}</button></div>
-        {results.length > 0 && <div style={{ marginTop: 18 }}><h2>Test Results</h2>{results.map((result, i) => <div key={result.id} className={`feedback ${result.passed ? 'success' : 'failure'}`}><strong>{result.passed ? '✓ Passed' : '✗ Failed'} — Test Case {i + 1}</strong><p>Expected: {result.expected}</p><p>Actual: {result.actual}</p></div>)}</div>}
+        <div style={{ marginTop: 14 }}><button className="primary-link" onClick={runTests} disabled={running || tests.length === 0}>{running ? 'Running...' : '▶ Run Code'}</button></div>
+        {message && <div className="feedback failure" style={{ marginTop: 16 }}><strong>Runner error</strong><p>{message}</p></div>}
+        {results.length > 0 && <div style={{ marginTop: 18 }}><h2>Test Results</h2>{results.map((result, i) => <div key={result.id} className={`feedback ${result.passed ? 'success' : 'failure'}`}><strong>{result.passed ? '✓ Passed' : '✗ Failed'} — Test Case {i + 1}</strong><p>Expected: {result.expected}</p><p>Actual: {result.actual || '(no output)'}</p>{result.error && <p>{result.error}</p>}</div>)}</div>}
       </section>
     </main>
   );
