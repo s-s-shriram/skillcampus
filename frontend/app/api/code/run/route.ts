@@ -1,110 +1,62 @@
 import { NextResponse } from 'next/server';
 
-const LANGUAGE_MAP: Record<string, string> = {
-  c: 'c',
-  cpp: 'c++',
-  java: 'java',
-  python: 'python',
-};
+export const runtime = 'nodejs';
 
-type TestCase = {
-  id: string;
-  input_data: string;
-  expected_output: string;
-};
+const LANGUAGE_IDS: Record<string, number> = { c: 50, cpp: 54, java: 62, python: 71 };
+
+type TestCase = { id: string; input_data: string; expected_output: string };
+type JudgeResult = { stdout?: string | null; stderr?: string | null; compile_output?: string | null; message?: string | null; status?: { id: number; description: string } };
+
+const judge0Url = () => (process.env.JUDGE0_API_URL || 'https://ce.judge0.com').replace(/\/$/, '');
+function getHeaders() {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (process.env.JUDGE0_API_KEY) headers['X-Auth-Token'] = process.env.JUDGE0_API_KEY;
+  return headers;
+}
+const normalize = (value: string | null | undefined) => (value ?? '').replace(/\r\n/g, '\n').trim();
+
+async function execute(languageId: number, code: string, test: TestCase): Promise<JudgeResult> {
+  const response = await fetch(`${judge0Url()}/submissions/?base64_encoded=false&wait=true`, {
+    method: 'POST', headers: getHeaders(), cache: 'no-store',
+    body: JSON.stringify({ language_id: languageId, source_code: code, stdin: test.input_data, expected_output: test.expected_output, cpu_time_limit: 2, wall_time_limit: 5, memory_limit: 128000 }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || `Judge0 returned HTTP ${response.status}.`);
+  return data as JudgeResult;
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const language = String(body?.language ?? '');
-    const code = String(body?.code ?? '');
+    const language = String(body?.language || '').toLowerCase();
+    const code = typeof body?.code === 'string' ? body.code : '';
     const tests = Array.isArray(body?.tests) ? body.tests as TestCase[] : [];
+    if (!LANGUAGE_IDS[language]) return NextResponse.json({ error: 'Only C, C++, Java and Python execution is supported right now.' }, { status: 400 });
+    if (!code.trim()) return NextResponse.json({ error: 'Code cannot be empty.' }, { status: 400 });
+    if (code.length > 50000) return NextResponse.json({ error: 'Code is too large.' }, { status: 400 });
+    if (tests.length === 0 || tests.length > 10) return NextResponse.json({ error: 'Provide between 1 and 10 public test cases.' }, { status: 400 });
 
-    if (!LANGUAGE_MAP[language]) {
-      return NextResponse.json({ error: 'Only C, C++, Java and Python execution is supported right now.' }, { status: 400 });
-    }
-    if (!code.trim()) {
-      return NextResponse.json({ error: 'Code cannot be empty.' }, { status: 400 });
-    }
-    if (code.length > 50000) {
-      return NextResponse.json({ error: 'Code is too large.' }, { status: 400 });
-    }
-    if (tests.length === 0 || tests.length > 10) {
-      return NextResponse.json({ error: 'Provide between 1 and 10 public test cases.' }, { status: 400 });
-    }
-
-    const pistonUrl = process.env.PISTON_API_URL || 'http://localhost:2000/api/v2/execute';
-    const results: Array<{
-      id: string;
-      passed: boolean;
-      actual: string;
-      expected: string;
-      error?: string;
-    }> = [];
-
+    const results = [];
     for (const test of tests) {
-      const input = String(test?.input_data ?? '');
-      const expected = String(test?.expected_output ?? '').trim();
-
+      const input = String(test.input_data ?? '');
+      const expected = normalize(test.expected_output);
       if (input.length > 10000 || expected.length > 10000) {
         results.push({ id: String(test.id), passed: false, actual: '', expected, error: 'Test case is too large.' });
         continue;
       }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-
       try {
-        const response = await fetch(pistonUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            language: LANGUAGE_MAP[language],
-            version: '*',
-            files: [{ name: language === 'java' ? 'Solution.java' : `Main.${language === 'python' ? 'py' : language === 'cpp' ? 'cpp' : 'c'}`, content: code }],
-            stdin: input,
-            args: [],
-            compile_timeout: 10000,
-            run_timeout: 3000,
-            compile_cpu_time: 10000,
-            run_cpu_time: 3000,
-            compile_memory_limit: -1,
-            run_memory_limit: -1,
-          }),
-        });
-
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          results.push({ id: String(test.id), passed: false, actual: '', expected, error: payload?.message || `Code runner returned HTTP ${response.status}.` });
-          continue;
-        }
-
-        const run = payload?.run;
-        const compile = payload?.compile;
-        const stderr = [compile?.stderr, run?.stderr].filter(Boolean).join('\n').trim();
-        const actual = String(run?.stdout ?? '').trim();
-        const passed = run?.code === 0 && !stderr && actual === expected;
-
-        results.push({
-          id: String(test.id),
-          passed,
-          actual: stderr || actual,
-          expected,
-          ...(stderr || run?.message ? { error: stderr || run?.message } : {}),
-        });
+        const result = await execute(LANGUAGE_IDS[language], code, test);
+        const actual = normalize(result.stdout);
+        const error = normalize(result.compile_output) || normalize(result.stderr) || normalize(result.message);
+        const passed = result.status?.id === 3 && !error && actual === expected;
+        results.push({ id: String(test.id), passed, actual: error || actual, expected, ...(passed ? {} : { error: error || `Judge0 status: ${result.status?.description || 'Output did not match.'}` }) });
       } catch (error) {
-        const message = error instanceof Error && error.name === 'AbortError'
-          ? 'Code execution timed out.'
-          : error instanceof Error ? error.message : 'Unable to reach the code runner.';
-        results.push({ id: String(test.id), passed: false, actual: '', expected, error: message });
-      } finally {
-        clearTimeout(timeout);
+        results.push({ id: String(test.id), passed: false, actual: '', expected, error: error instanceof Error ? error.message : 'Unable to reach Judge0.' });
       }
     }
-
     return NextResponse.json({ results });
   } catch (error) {
+    console.error('Judge0 execution error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid request.' }, { status: 400 });
   }
 }
